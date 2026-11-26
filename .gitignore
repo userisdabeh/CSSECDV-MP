@@ -1,0 +1,8 @@
+/dist/
+*.properties
+*.class
+*.class
+/build
+*.properties
+build/built-jar.properties
+*.class
