@@ -102,8 +102,32 @@ public class Main {
         
         
         // Initialize User Interface
-        Frame frame = new Frame();
+        final Frame frame = new Frame();
+        Thread.setDefaultUncaughtExceptionHandler((thread, throwable) -> {
+            javax.swing.SwingUtilities.invokeLater(() -> {
+                frame.resetToLogin();
+                ErrorHandler.show(frame);
+            });
+        });
         frame.init(this);
+    }
+
+    public void log(String event, String username, String desc) {
+        try {
+            String safeEvent = (event == null || event.trim().isEmpty()) ? "NOTICE" : event.trim();
+            String safeUser = (username == null || username.trim().isEmpty()) ? "unknown" : username.trim();
+            String safeDesc = (desc == null) ? "" : desc;
+            if (safeUser.length() > 100) {
+                safeUser = safeUser.substring(0, 100);
+            }
+            if (safeDesc.length() > 100) {
+                safeDesc = safeDesc.substring(0, 100);
+            }
+            String timestamp = new Timestamp(new Date().getTime()).toString();
+            sqlite.addLogs(safeEvent, safeUser, safeDesc, timestamp);
+        } catch (Exception ex) {
+            // Do not crash application if logging fails
+        }
     }
     
 }

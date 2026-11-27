@@ -5,6 +5,8 @@
  */
 package View;
 //[255,102,51]
+import Controller.AccessControl;
+import Controller.ErrorHandler;
 import Controller.SQLite;
 import Model.History;
 import Model.Logs;
@@ -13,6 +15,8 @@ import Model.User;
 import java.awt.CardLayout;
 import java.awt.Color;
 import java.util.ArrayList;
+import javax.swing.JOptionPane;
+import javax.swing.SwingUtilities;
 import javax.swing.table.DefaultTableModel;
 
 /**
@@ -45,14 +49,40 @@ public class AdminHome extends javax.swing.JPanel {
         Content.add(this.mgmtProduct, "mgmtProduct");
         Content.add(this.mgmtLogs, "mgmtLogs");
         
-//        UNCOMMENT TO DISABLE BUTTONS
-//        historyBtn.setVisible(false);
-//        usersBtn.setVisible(false);
-//        productsBtn.setVisible(false);
-//        logsBtn.setVisible(false);
+        // Admin manages users and logs only (not products or purchase history)
+        historyBtn.setVisible(false);
+        productsBtn.setVisible(false);
+    }
+
+    private Frame frame() {
+        return (Frame) SwingUtilities.getAncestorOfClass(Frame.class, this);
+    }
+
+    private User activeUser(String panel) {
+        Frame frame = frame();
+        User user = (frame == null) ? null : frame.currentUser;
+        return AccessControl.canAccess(user, panel) ? user : null;
+    }
+
+    private void denyAccess(String resource) {
+        Frame frame = frame();
+        String actor = (frame != null && frame.currentUser != null) ? frame.currentUser.getUsername() : "unknown";
+        if (frame != null && frame.main != null) {
+            frame.main.log("ACCESS_DENIED", actor, "Unauthorized access attempt to " + resource);
+        }
+        contentView.show(Content, "home");
+        JOptionPane.showMessageDialog(this, "Access denied.");
     }
     
     public void showPnl(String panelName){
+        if (activeUser("admin") == null) {
+            contentView.show(Content, "home");
+            return;
+        }
+        if ("mgmtLogs".equals(panelName) && activeUser("logs") == null) {
+            contentView.show(Content, "home");
+            return;
+        }
         contentView.show(Content, panelName);
     }
 
@@ -156,39 +186,53 @@ public class AdminHome extends javax.swing.JPanel {
     }// </editor-fold>//GEN-END:initComponents
 
     private void usersBtnActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_usersBtnActionPerformed
-        mgmtUser.init();
-        usersBtn.setForeground(Color.red);
-        productsBtn.setForeground(Color.black);
-        historyBtn.setForeground(Color.black);
-        logsBtn.setForeground(Color.black);
-        contentView.show(Content, "mgmtUser");
+        try {
+            if (activeUser("admin") == null) {
+                denyAccess("admin users");
+                return;
+            }
+            mgmtUser.init();
+            usersBtn.setForeground(Color.red);
+            productsBtn.setForeground(Color.black);
+            historyBtn.setForeground(Color.black);
+            logsBtn.setForeground(Color.black);
+            contentView.show(Content, "mgmtUser");
+        } catch (Exception ex) {
+            ErrorHandler.show(this);
+        }
     }//GEN-LAST:event_usersBtnActionPerformed
 
     private void productsBtnActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_productsBtnActionPerformed
-        mgmtProduct.init();
-        usersBtn.setForeground(Color.black);
-        productsBtn.setForeground(Color.red);
-        historyBtn.setForeground(Color.black);
-        logsBtn.setForeground(Color.black);
-        contentView.show(Content, "mgmtProduct");
+        try {
+            denyAccess("admin products");
+        } catch (Exception ex) {
+            ErrorHandler.show(this);
+        }
     }//GEN-LAST:event_productsBtnActionPerformed
 
     private void historyBtnActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_historyBtnActionPerformed
-        mgmtHistory.init();
-        usersBtn.setForeground(Color.black);
-        productsBtn.setForeground(Color.black);
-        historyBtn.setForeground(Color.red);
-        logsBtn.setForeground(Color.black);
-        contentView.show(Content, "mgmtHistory");
+        try {
+            denyAccess("admin history");
+        } catch (Exception ex) {
+            ErrorHandler.show(this);
+        }
     }//GEN-LAST:event_historyBtnActionPerformed
 
     private void logsBtnActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_logsBtnActionPerformed
-        mgmtLogs.init();
-        usersBtn.setForeground(Color.black);
-        productsBtn.setForeground(Color.black);
-        historyBtn.setForeground(Color.black);
-        logsBtn.setForeground(Color.red);
-        contentView.show(Content, "mgmtLogs");
+        try {
+            if (activeUser("logs") == null) {
+                denyAccess("logs");
+                return;
+            }
+            mgmtLogs.init();
+            usersBtn.setForeground(Color.black);
+            productsBtn.setForeground(Color.black);
+            historyBtn.setForeground(Color.black);
+            logsBtn.setForeground(Color.red);
+            contentView.show(Content, "mgmtLogs");
+        } catch (Exception ex) {
+            ErrorHandler.show(this);
+        }
     }//GEN-LAST:event_logsBtnActionPerformed
     
     
