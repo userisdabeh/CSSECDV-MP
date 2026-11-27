@@ -320,8 +320,29 @@ public class Frame extends javax.swing.JFrame {
         frameView.show(Container, "registerPnl");
     }
     
-    public void registerAction(String username, String password, String confpass){
-        main.sqlite.addUser(username, password);
+    public boolean loginAction(String username, char[] password) {
+        try {
+            Controller.AuthController.LoginResult result = main.auth.login(username, password);
+            
+            if (result == null) {
+                return false;
+            }
+            
+            currentUser = result.user;
+            
+            String msg = (result.lastAttempt == null) ? "Welcome! This is your first login." : "Last login attempt: " + result.lastAttempt + " (" + result.lastStatus + ")";
+            
+            JOptionPane.showMessageDialog(this, msg, "Welcome", JOptionPane.INFORMATION_MESSAGE);
+            mainNav();
+            return true;
+        } catch (Exception e) {
+            currentUser = null;
+            return false;
+        }
+    }
+    
+    public boolean registerAction(String username, char[] password, char[] confpass){
+        return main.auth.register(username, password, confpass);
     }
 
     // Variables declaration - do not modify//GEN-BEGIN:variables
