@@ -5,9 +5,12 @@
  */
 package View;
 
+import Controller.AccessControl;
+import Controller.ErrorHandler;
 import Controller.SQLite;
 import Model.Logs;
 import java.util.ArrayList;
+import javax.swing.SwingUtilities;
 import javax.swing.table.DefaultTableModel;
 
 /**
@@ -31,19 +34,28 @@ public class MgmtLogs extends javax.swing.JPanel {
     }
 
     public void init(){
-        //      CLEAR TABLE
-        for(int nCtr = tableModel.getRowCount(); nCtr > 0; nCtr--){
-            tableModel.removeRow(0);
-        }
-        
-//      LOAD CONTENTS
-        ArrayList<Logs> logs = sqlite.getLogs();
-        for(int nCtr = 0; nCtr < logs.size(); nCtr++){
-            tableModel.addRow(new Object[]{
-                logs.get(nCtr).getEvent(), 
-                logs.get(nCtr).getUsername(), 
-                logs.get(nCtr).getDesc(), 
-                logs.get(nCtr).getTimestamp()});
+        try {
+            // CLEAR TABLE
+            for(int nCtr = tableModel.getRowCount(); nCtr > 0; nCtr--){
+                tableModel.removeRow(0);
+            }
+
+            Frame frame = (Frame) SwingUtilities.getAncestorOfClass(Frame.class, this);
+            if (frame == null || !AccessControl.canAccess(frame.currentUser, "logs")) {
+                return;
+            }
+
+            // LOAD CONTENTS
+            ArrayList<Logs> logs = sqlite.getLogs();
+            for(int nCtr = 0; nCtr < logs.size(); nCtr++){
+                tableModel.addRow(new Object[]{
+                    logs.get(nCtr).getEvent(), 
+                    logs.get(nCtr).getUsername(), 
+                    logs.get(nCtr).getDesc(), 
+                    logs.get(nCtr).getTimestamp()});
+            }
+        } catch (Exception ex) {
+            ErrorHandler.show(this);
         }
     }
     /**

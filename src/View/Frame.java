@@ -1,9 +1,13 @@
 package View;
 
+import Controller.AccessControl;
+import Controller.ErrorHandler;
 import Controller.Main;
+import Model.User;
 import java.awt.BorderLayout;
 import java.awt.CardLayout;
 import java.awt.Dimension;
+import javax.swing.JOptionPane;
 import javax.swing.WindowConstants;
 
 public class Frame extends javax.swing.JFrame {
@@ -180,30 +184,35 @@ public class Frame extends javax.swing.JFrame {
     }// </editor-fold>//GEN-END:initComponents
 
     private void adminBtnActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_adminBtnActionPerformed
-        adminHomePnl.showPnl("home");
-        contentView.show(Content, "adminHomePnl");
+        showPanel("admin");
     }//GEN-LAST:event_adminBtnActionPerformed
 
     private void managerBtnActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_managerBtnActionPerformed
-        managerHomePnl.showPnl("home");
-        contentView.show(Content, "managerHomePnl");
+        showPanel("manager");
     }//GEN-LAST:event_managerBtnActionPerformed
 
     private void staffBtnActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_staffBtnActionPerformed
-        staffHomePnl.showPnl("home");
-        contentView.show(Content, "staffHomePnl");
+        showPanel("staff");
     }//GEN-LAST:event_staffBtnActionPerformed
 
     private void clientBtnActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_clientBtnActionPerformed
-        clientHomePnl.showPnl("home");
-        contentView.show(Content, "clientHomePnl");
+        showPanel("client");
     }//GEN-LAST:event_clientBtnActionPerformed
 
     private void logoutBtnActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_logoutBtnActionPerformed
-        frameView.show(Container, "loginPnl");
+        try {
+            if (currentUser != null && main != null) {
+                main.log("LOGOUT", currentUser.getUsername(), "User logged out");
+            }
+            resetToLogin();
+        } catch (Exception ex) {
+            resetToLogin();
+            ErrorHandler.show(this);
+        }
     }//GEN-LAST:event_logoutBtnActionPerformed
 
     public Main main;
+    public User currentUser;
     public Login loginPnl = new Login();
     public Register registerPnl = new Register();
     
@@ -240,12 +249,67 @@ public class Frame extends javax.swing.JFrame {
         Content.add(managerHomePnl, "managerHomePnl");
         Content.add(staffHomePnl, "staffHomePnl");
         Content.add(clientHomePnl, "clientHomePnl");
-        
+
+        updateNavVisibility();
         this.setVisible(true);
+    }
+
+    public void showPanel(String panel) {
+        try {
+            if (!AccessControl.canAccess(currentUser, panel)) {
+                String actor = (currentUser != null) ? currentUser.getUsername() : "unknown";
+                if (main != null) {
+                    main.log("ACCESS_DENIED", actor, "Unauthorized access attempt to " + panel);
+                }
+                if (currentUser == null || AccessControl.getHomePanel(currentUser) == null) {
+                    resetToLogin();
+                }
+                JOptionPane.showMessageDialog(this, "Access denied.");
+                return;
+            }
+
+            updateNavVisibility();
+            frameView.show(Container, "homePnl");
+
+            if ("admin".equals(panel)) {
+                adminHomePnl.showPnl("home");
+                contentView.show(Content, "adminHomePnl");
+            } else if ("manager".equals(panel)) {
+                managerHomePnl.showPnl("home");
+                contentView.show(Content, "managerHomePnl");
+            } else if ("staff".equals(panel)) {
+                staffHomePnl.showPnl("home");
+                contentView.show(Content, "staffHomePnl");
+            } else if ("client".equals(panel)) {
+                clientHomePnl.showPnl("home");
+                contentView.show(Content, "clientHomePnl");
+            }
+        } catch (Exception ex) {
+            resetToLogin();
+            ErrorHandler.show(this);
+        }
+    }
+
+    public void updateNavVisibility() {
+        adminBtn.setVisible(AccessControl.canAccess(currentUser, "admin"));
+        managerBtn.setVisible(AccessControl.canAccess(currentUser, "manager"));
+        staffBtn.setVisible(AccessControl.canAccess(currentUser, "staff"));
+        clientBtn.setVisible(AccessControl.canAccess(currentUser, "client"));
+    }
+
+    public void resetToLogin() {
+        currentUser = null;
+        updateNavVisibility();
+        frameView.show(Container, "loginPnl");
     }
     
     public void mainNav(){
-        frameView.show(Container, "homePnl");
+        String target = AccessControl.getHomePanel(currentUser);
+        if (target == null) {
+            showPanel("home");
+            return;
+        }
+        showPanel(target);
     }
     
     public void loginNav(){
