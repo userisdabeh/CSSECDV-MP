@@ -5,7 +5,10 @@
  */
 package View;
 
+import Controller.AccessControl;
+import Controller.ErrorHandler;
 import Controller.SQLite;
+import Controller.Validator;
 import Model.User;
 import java.util.ArrayList;
 import javax.swing.JComboBox;
@@ -14,6 +17,7 @@ import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JPasswordField;
 import javax.swing.JTextField;
+import javax.swing.SwingUtilities;
 import javax.swing.table.DefaultTableModel;
 
 /**
@@ -31,27 +35,51 @@ public class MgmtUser extends javax.swing.JPanel {
         tableModel = (DefaultTableModel)table.getModel();
         table.getTableHeader().setFont(new java.awt.Font("SansSerif", java.awt.Font.BOLD, 14));
         
-//        UNCOMMENT TO DISABLE BUTTONS
-//        editBtn.setVisible(false);
-//        deleteBtn.setVisible(false);
-//        lockBtn.setVisible(false);
-//        chgpassBtn.setVisible(false);
+        // Admin is not super admin; password changes require user re-authentication
+        chgpassBtn.setVisible(false);
+    }
+
+    private Frame frame() {
+        return (Frame) SwingUtilities.getAncestorOfClass(Frame.class, this);
+    }
+
+    private User activeUser() {
+        Frame frame = frame();
+        User user = (frame == null) ? null : frame.currentUser;
+        return AccessControl.canAccess(user, "admin") ? user : null;
+    }
+
+    private void denyAccess(String action) {
+        Frame frame = frame();
+        String actor = (frame != null && frame.currentUser != null) ? frame.currentUser.getUsername() : "unknown";
+        if (frame != null && frame.main != null) {
+            frame.main.log("ACCESS_DENIED", actor, "Unauthorized access attempt to " + action);
+        }
+        JOptionPane.showMessageDialog(this, "Access denied.");
     }
     
     public void init(){
-        //      CLEAR TABLE
-        for(int nCtr = tableModel.getRowCount(); nCtr > 0; nCtr--){
-            tableModel.removeRow(0);
-        }
-        
-//      LOAD CONTENTS
-        ArrayList<User> users = sqlite.getUsers();
-        for(int nCtr = 0; nCtr < users.size(); nCtr++){
-            tableModel.addRow(new Object[]{
-                users.get(nCtr).getUsername(), 
-                users.get(nCtr).getPassword(), 
-                users.get(nCtr).getRole(), 
-                users.get(nCtr).getLocked()});
+        try {
+            // CLEAR TABLE
+            for(int nCtr = tableModel.getRowCount(); nCtr > 0; nCtr--){
+                tableModel.removeRow(0);
+            }
+
+            if (activeUser() == null) {
+                return;
+            }
+
+            // LOAD CONTENTS
+            ArrayList<User> users = sqlite.getUsers();
+            for(int nCtr = 0; nCtr < users.size(); nCtr++){
+                tableModel.addRow(new Object[]{
+                    users.get(nCtr).getUsername(), 
+                    "********", 
+                    users.get(nCtr).getRole(), 
+                    users.get(nCtr).getLocked()});
+            }
+        } catch (Exception ex) {
+            ErrorHandler.show(this);
         }
     }
 
@@ -179,65 +207,113 @@ public class MgmtUser extends javax.swing.JPanel {
     }// </editor-fold>//GEN-END:initComponents
 
     private void editRoleBtnActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_editRoleBtnActionPerformed
-        if(table.getSelectedRow() >= 0){
-            String[] options = {"1-DISABLED","2-CLIENT","3-STAFF","4-MANAGER","5-ADMIN"};
-            JComboBox optionList = new JComboBox(options);
-            
-            optionList.setSelectedIndex((int)tableModel.getValueAt(table.getSelectedRow(), 2) - 1);
-            
-            String result = (String) JOptionPane.showInputDialog(null, "USER: " + tableModel.getValueAt(table.getSelectedRow(), 0), 
-                "EDIT USER ROLE", JOptionPane.QUESTION_MESSAGE, null, options, options[(int)tableModel.getValueAt(table.getSelectedRow(), 2) - 1]);
-            
-            if(result != null){
-                System.out.println(tableModel.getValueAt(table.getSelectedRow(), 0));
-                System.out.println(result.charAt(0));
+        try {
+            User actor = activeUser();
+            if (actor == null) {
+                denyAccess("edit user role");
+                return;
             }
+            if(table.getSelectedRow() >= 0){
+                String targetUser = String.valueOf(tableModel.getValueAt(table.getSelectedRow(), 0));
+                int currentRole = (int) tableModel.getValueAt(table.getSelectedRow(), 2);
+                String[] options = {"1-DISABLED","2-CLIENT","3-STAFF","4-MANAGER","5-ADMIN"};
+                int selectedIndex = (currentRole >= 1 && currentRole <= 5) ? currentRole - 1 : 0;
+
+                String result = (String) JOptionPane.showInputDialog(this, "USER: " + targetUser, 
+                    "EDIT USER ROLE", JOptionPane.QUESTION_MESSAGE, null, options, options[selectedIndex]);
+
+                if(result != null){
+                    String roleDigit = result.substring(0, 1);
+                    if (!Validator.isValidUsername(targetUser) || !Validator.isValidRole(roleDigit)) {
+                        frame().main.log("VALIDATION_FAILURE", actor.getUsername(), "Invalid role edit input");
+                        JOptionPane.showMessageDialog(this, "Invalid input.");
+                        return;
+                    }
+                    int newRole = Integer.parseInt(roleDigit);
+                    if (targetUser.equals(actor.getUsername())) {
+                        frame().main.log("VALIDATION_FAILURE", actor.getUsername(), "Admin cannot change own role");
+                        JOptionPane.showMessageDialog(this, "You cannot change your own role.");
+                        return;
+                    }
+                    // Pending Dave's SQLite.updateUserRole(targetUser, newRole)
+                    JOptionPane.showMessageDialog(this, "Role update requires SQLite.updateUserRole from DB layer.");
+                }
+            }
+        } catch (Exception ex) {
+            ErrorHandler.show(this);
         }
     }//GEN-LAST:event_editRoleBtnActionPerformed
 
     private void deleteBtnActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_deleteBtnActionPerformed
-        if(table.getSelectedRow() >= 0){
-            int result = JOptionPane.showConfirmDialog(null, "Are you sure you want to delete " + tableModel.getValueAt(table.getSelectedRow(), 0) + "?", "DELETE USER", JOptionPane.YES_NO_OPTION);
-            
-            if (result == JOptionPane.YES_OPTION) {
-                System.out.println(tableModel.getValueAt(table.getSelectedRow(), 0));
+        try {
+            User actor = activeUser();
+            if (actor == null) {
+                denyAccess("delete user");
+                return;
             }
+            if(table.getSelectedRow() >= 0){
+                String targetUser = String.valueOf(tableModel.getValueAt(table.getSelectedRow(), 0));
+                if (!Validator.isValidUsername(targetUser)) {
+                    frame().main.log("VALIDATION_FAILURE", actor.getUsername(), "Invalid username on delete");
+                    JOptionPane.showMessageDialog(this, "Invalid input.");
+                    return;
+                }
+                if (targetUser.equals(actor.getUsername())) {
+                    frame().main.log("VALIDATION_FAILURE", actor.getUsername(), "Admin cannot delete own account");
+                    JOptionPane.showMessageDialog(this, "You cannot delete your own account.");
+                    return;
+                }
+                int result = JOptionPane.showConfirmDialog(this, "Are you sure you want to delete " + targetUser + "?", "DELETE USER", JOptionPane.YES_NO_OPTION);
+
+                if (result == JOptionPane.YES_OPTION) {
+                    sqlite.removeUser(targetUser);
+                    frame().main.log("USER_DELETED", actor.getUsername(), "Deleted user " + targetUser);
+                    init();
+                }
+            }
+        } catch (Exception ex) {
+            ErrorHandler.show(this);
         }
     }//GEN-LAST:event_deleteBtnActionPerformed
 
     private void lockBtnActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_lockBtnActionPerformed
-        if(table.getSelectedRow() >= 0){
-            String state = "lock";
-            if("1".equals(tableModel.getValueAt(table.getSelectedRow(), 3) + "")){
-                state = "unlock";
+        try {
+            User actor = activeUser();
+            if (actor == null) {
+                denyAccess("lock/unlock user");
+                return;
             }
-            
-            int result = JOptionPane.showConfirmDialog(null, "Are you sure you want to " + state + " " + tableModel.getValueAt(table.getSelectedRow(), 0) + "?", "DELETE USER", JOptionPane.YES_NO_OPTION);
-            
-            if (result == JOptionPane.YES_OPTION) {
-                System.out.println(tableModel.getValueAt(table.getSelectedRow(), 0));
+            if(table.getSelectedRow() >= 0){
+                String targetUser = String.valueOf(tableModel.getValueAt(table.getSelectedRow(), 0));
+                if (!Validator.isValidUsername(targetUser)) {
+                    frame().main.log("VALIDATION_FAILURE", actor.getUsername(), "Invalid username on lock/unlock");
+                    JOptionPane.showMessageDialog(this, "Invalid input.");
+                    return;
+                }
+                if (targetUser.equals(actor.getUsername())) {
+                    frame().main.log("VALIDATION_FAILURE", actor.getUsername(), "Admin cannot lock own account");
+                    JOptionPane.showMessageDialog(this, "You cannot lock or unlock your own account.");
+                    return;
+                }
+                String state = "lock";
+                if("1".equals(tableModel.getValueAt(table.getSelectedRow(), 3) + "") || "1".equals(tableModel.getValueAt(table.getSelectedRow(), 2) + "")){
+                    state = "unlock";
+                }
+
+                int result = JOptionPane.showConfirmDialog(this, "Are you sure you want to " + state + " " + targetUser + "?", "LOCK/UNLOCK USER", JOptionPane.YES_NO_OPTION);
+
+                if (result == JOptionPane.YES_OPTION) {
+                    // Pending Dave's SQLite.unlockUser(...)
+                    JOptionPane.showMessageDialog(this, "Lock/unlock requires SQLite.unlockUser from DB layer.");
+                }
             }
+        } catch (Exception ex) {
+            ErrorHandler.show(this);
         }
     }//GEN-LAST:event_lockBtnActionPerformed
 
     private void chgpassBtnActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_chgpassBtnActionPerformed
-        if(table.getSelectedRow() >= 0){
-            JTextField password = new JPasswordField();
-            JTextField confpass = new JPasswordField();
-            designer(password, "PASSWORD");
-            designer(confpass, "CONFIRM PASSWORD");
-            
-            Object[] message = {
-                "Enter New Password:", password, confpass
-            };
-
-            int result = JOptionPane.showConfirmDialog(null, message, "CHANGE PASSWORD", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE, null);
-            
-            if (result == JOptionPane.OK_OPTION) {
-                System.out.println(password.getText());
-                System.out.println(confpass.getText());
-            }
-        }
+        denyAccess("change user password");
     }//GEN-LAST:event_chgpassBtnActionPerformed
 
 
