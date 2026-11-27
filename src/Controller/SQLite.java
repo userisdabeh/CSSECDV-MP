@@ -11,9 +11,15 @@ import java.sql.ResultSet;
 import java.sql.Statement;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
+import java.sql.Timestamp;
+import java.sql.Types;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 
 public class SQLite {
+    private static final DateTimeFormatter HISTORY_TIMESTAMP =
+            DateTimeFormatter.ofPattern("uuuu-MM-dd HH:mm:ss.SSS");
     
     public int DEBUG_MODE = 0;
     String driverURL = "jdbc:sqlite:" + "database.db";
@@ -183,17 +189,139 @@ public class SQLite {
     }
     
     public void addProduct(String name, int stock, double price) {
-        String sql = "INSERT INTO product(name,stock,price) VALUES(?,?,?)";
-        
-        try (Connection conn = DriverManager.getConnection(driverURL);
-            PreparedStatement pstmt = conn.prepareStatement(sql)){
-            pstmt.setString(1, name);
-            pstmt.setInt(2, stock);
-            pstmt.setDouble(3, price);
-            pstmt.executeUpdate();
+        try {
+            insertProduct(name, stock, price);
         } catch (Exception ex) {
             System.out.print(ex);
         }
+    }
+
+    public void insertProduct(String name, int stock, double price) throws SQLException {
+        String sql = "INSERT INTO product(name,stock,price) VALUES(?,?,?)";
+        try (Connection conn = DriverManager.getConnection(driverURL);
+             PreparedStatement statement = conn.prepareStatement(sql)) {
+            statement.setString(1, name);
+            statement.setInt(2, stock);
+            statement.setDouble(3, price);
+            statement.executeUpdate();
+        }
+    }
+
+    public boolean updateProduct(int id, String expectedName, int expectedStock, String name,
+            int stock, Double newPrice)
+            throws SQLException {
+        String sql = "UPDATE product SET name = ?, stock = ?, price = COALESCE(?, price) "
+                + "WHERE id = ? AND name = ? AND stock = ?";
+        try (Connection conn = DriverManager.getConnection(driverURL);
+             PreparedStatement statement = conn.prepareStatement(sql)) {
+            statement.setString(1, name);
+            statement.setInt(2, stock);
+            if (newPrice == null) {
+                statement.setNull(3, Types.REAL);
+            } else {
+                statement.setDouble(3, newPrice);
+            }
+            statement.setInt(4, id);
+            statement.setString(5, expectedName);
+            statement.setInt(6, expectedStock);
+            return statement.executeUpdate() == 1;
+        }
+    }
+
+    public boolean deleteProduct(int id) throws SQLException {
+        String sql = "DELETE FROM product WHERE id = ?";
+        try (Connection conn = DriverManager.getConnection(driverURL);
+             PreparedStatement statement = conn.prepareStatement(sql)) {
+            statement.setInt(1, id);
+            return statement.executeUpdate() == 1;
+        }
+    }
+
+    public ArrayList<Product> listProducts() throws SQLException {
+        String sql = "SELECT id, name, stock, price FROM product ORDER BY name";
+        ArrayList<Product> products = new ArrayList<>();
+        try (Connection conn = DriverManager.getConnection(driverURL);
+             PreparedStatement statement = conn.prepareStatement(sql);
+             ResultSet rows = statement.executeQuery()) {
+            while (rows.next()) {
+                products.add(new Product(rows.getInt("id"), rows.getString("name"),
+                        rows.getInt("stock"), rows.getDouble("price")));
+            }
+        }
+        return products;
+    }
+
+    public boolean purchaseProduct(String username, int productId, String productName, int quantity)
+            throws SQLException {
+        if (username == null || username.isEmpty() || quantity <= 0 || quantity > 10000) {
+            throw new IllegalArgumentException("Invalid purchase");
+        }
+        String debit = "UPDATE product SET stock = stock - ? WHERE id = ? AND name = ? AND stock >= ?";
+        String history = "INSERT INTO history(username,name,stock,timestamp) VALUES(?,?,?,?)";
+        try (Connection conn = DriverManager.getConnection(driverURL);
+             PreparedStatement stock = conn.prepareStatement(debit);
+             PreparedStatement receipt = conn.prepareStatement(history)) {
+            conn.setAutoCommit(false);
+            try {
+                stock.setInt(1, quantity);
+                stock.setInt(2, productId);
+                stock.setString(3, productName);
+                stock.setInt(4, quantity);
+                if (stock.executeUpdate() != 1) {
+                    conn.rollback();
+                    return false;
+                }
+                receipt.setString(1, username);
+                receipt.setString(2, productName);
+                receipt.setInt(3, quantity);
+                receipt.setString(4, LocalDateTime.now().format(HISTORY_TIMESTAMP));
+                if (receipt.executeUpdate() != 1) {
+                    throw new SQLException("Purchase history was not recorded");
+                }
+                conn.commit();
+                return true;
+            } catch (SQLException | RuntimeException failure) {
+                try {
+                    conn.rollback();
+                } catch (SQLException rollbackFailure) {
+                    failure.addSuppressed(rollbackFailure);
+                }
+                throw failure;
+            }
+        }
+    }
+
+    public ArrayList<History> getHistory(String username) throws SQLException {
+        if (username == null || username.isEmpty()) {
+            throw new IllegalArgumentException("A history owner is required");
+        }
+        return listPurchaseHistory("SELECT id, username, name, stock, timestamp FROM history "
+                + "WHERE username = ? ORDER BY id DESC", username);
+    }
+
+    public ArrayList<History> listPurchaseHistory() throws SQLException {
+        return listPurchaseHistory("SELECT id, username, name, stock, timestamp FROM history "
+                + "ORDER BY id DESC", null);
+    }
+
+    private ArrayList<History> listPurchaseHistory(String sql, String username) throws SQLException {
+        ArrayList<History> histories = new ArrayList<>();
+        try (Connection conn = DriverManager.getConnection(driverURL);
+             PreparedStatement statement = conn.prepareStatement(sql)) {
+            if (username != null) {
+                statement.setString(1, username);
+            }
+            try (ResultSet rows = statement.executeQuery()) {
+                while (rows.next()) {
+                    History entry = new History(rows.getString("username"), rows.getString("name"),
+                            rows.getInt("stock"));
+                    entry.setId(rows.getInt("id"));
+                    entry.setTimestamp(Timestamp.valueOf(rows.getString("timestamp")));
+                    histories.add(entry);
+                }
+            }
+        }
+        return histories;
     }
     
     public void addUser(String username, String password) {

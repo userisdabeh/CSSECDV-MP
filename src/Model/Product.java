@@ -14,7 +14,7 @@ public class Product {
     private int id;
     private String name;
     private int stock;
-    private float price;
+    private double price;
     
     public Product(String name, int stock, float price){
         this.name = name;
@@ -23,6 +23,10 @@ public class Product {
     }
     
     public Product(int id, String name, int stock, float price){
+        this(id, name, stock, (double) price);
+    }
+
+    public Product(int id, String name, int stock, double price){
         this.id = id;
         this.name = name;
         this.stock = stock;
@@ -54,6 +58,10 @@ public class Product {
     }
 
     public float getPrice() {
+        return (float) price;
+    }
+
+    public double getPriceAsDouble() {
         return price;
     }
 
