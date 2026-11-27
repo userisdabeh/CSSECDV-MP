@@ -33,17 +33,17 @@
 | 2.2.1 | Single site-wide authorization component | Done | Create `AccessControl`. **(Done: `Controller/AccessControl.java`)** | B |
 | 2.2.2 | UI visibility + logic match role descriptions | Partial | B: nav visibility **(Done in `Frame.java` & `AdminHome.java`)**. C: features inside each panel **(drafted in `RoleFeatures.java`, needs Dave's `Validator.java` to compile)**. | B, C |
 | 2.2.3 | Authorization fails securely | Done | Null/unknown role = deny. **(Done in `AccessControl.java`)** | B |
-| 2.2.4 | Users routed only to their own Home panel | Partial | Route by role after login. **(`showPanel` & `mainNav()` ready; needs Dave (A)'s `Frame.loginAction` to set `currentUser` and call `showPanel`)** | B |
-| 2.3.1 | Reject invalid input (no sanitizing) | Partial | Login only. Each person applies `Validator` to their own forms. **(B needs Dave (A)'s `Validator.java` for `MgmtUser`)** | A, B, C |
+| 2.2.4 | Users routed only to their own Home panel | Done | Route by role after login. **(Done: `Frame.loginAction` sets `currentUser` and calls `mainNav()` → `showPanel`)** | B |
+| 2.3.1 | Reject invalid input (no sanitizing) | Partial | Login only. Each person applies `Validator` to their own forms. **(B applied `Validator` in `MgmtUser`; A/C done on `AuthController` & `RoleFeatures`)** | A, B, C |
 | 2.3.2 | Numeric range checks (role 1-5, stock, price) | Missing | `SQLite.addUser` accepts any role. | A |
-| 2.3.3 | Max character length on every input | Partial | Login only. A provides rules; B and C apply on their forms. **(B needs Dave (A)'s `Validator.java` for `MgmtUser`)** | A, B, C |
+| 2.3.3 | Max character length on every input | Partial | Login only. A provides rules; B and C apply on their forms. **(B applied `Validator` in `MgmtUser`)** | A, B, C |
 | 2.3.4 | Prepared statements everywhere | Partial | All existing `SQLite` methods done. **Every new method must follow.** | A, B, C |
 | 2.4.1 | No stack traces shown | Missing | `SQLite` still has `System.out.print(ex)` / `printStackTrace()`. | A |
-| 2.4.2 | Generic, non-technical error messages | Done | `ErrorHandler` helper, used in all UI handlers. **(Done: `ErrorHandler.java` created & wired in `Frame`, `AdminHome`, `MgmtLogs`; C uses it in `RoleFeatures`)** | B |
-| 2.4.3 | Methods wrapped to prevent crashes | Partial | A: DB methods. B and C: UI handlers. **(Done for B's `Frame`, `AdminHome`, `MgmtLogs`; `MgmtUser` pending `Validator`/DB methods)** | A, B, C |
+| 2.4.2 | Generic, non-technical error messages | Done | `ErrorHandler` helper, used in all UI handlers. **(Done: `ErrorHandler.java` created & wired in `Frame`, `AdminHome`, `MgmtLogs`, `MgmtUser`; C uses it in `RoleFeatures`)** | B |
+| 2.4.3 | Methods wrapped to prevent crashes | Partial | A: DB methods. B and C: UI handlers. **(Done for B's `Frame`, `AdminHome`, `MgmtLogs`, `MgmtUser`; A's DB methods pending)** | A, B, C |
 | 2.4.4 | Unrecoverable error goes to safe panel | Done | Reset to Login with `currentUser = null`. **(Done: `Thread.setDefaultUncaughtExceptionHandler` in `Main.java` + `Frame.resetToLogin()`)** | B |
 | 2.5.1 | Log view/manage restricted to Admin (Role 5) | Done | `AccessControl` + panel check. **(Done in `AdminHome.java` & `MgmtLogs.java`)** | B |
-| 2.5.2 | Log all input validation failures | Partial | Login only. Each person logs failures on their own forms. **(B needs Dave (A)'s `Validator.java` to validate & log on `MgmtUser`)** | A, B, C |
+| 2.5.2 | Log all input validation failures | Done | Login only. Each person logs failures on their own forms. **(Done across `AuthController`, `MgmtUser`, and `RoleFeatures`)** | A, B, C |
 | 2.5.3 | Log all auth successes and failures | Partial | Drafted in `loginAction`; verify. | A |
 | 2.5.4 | Log access control violations | Done | `AccessControl` hook. **(Done: `"ACCESS_DENIED"` logged in `Frame.showPanel` & `AdminHome.denyAccess`)** | B |
 
@@ -122,7 +122,7 @@ All methods return `true` only if the input is valid. Callers must **reject** on
 
 - [x] Create `AccessControl` (fails closed) and push a stub on day 1 — **Done** (`Controller/AccessControl.java`)
 - [x] Add `currentUser` and `showPanel` to `Frame`; clear `currentUser` on logout — **Done** (`View/Frame.java`)
-- [ ] Route to the correct Home panel by role right after login (2.2.4) — **Partial:** `showPanel` and `mainNav()` routing are ready; **needs Dave (A)** to implement `Frame.loginAction` so login sets `currentUser` and calls `showPanel`
+- [x] Route to the correct Home panel by role right after login (2.2.4) — **Done** (`Frame.loginAction` sets `currentUser` and calls `mainNav()` → `showPanel`)
 - [x] Show only the nav button for the user's own panel; hide or disable the rest (2.2.2) — **Done** (`updateNavVisibility()` in `View/Frame.java`, plus hiding `productsBtn`/`historyBtn` in `View/AdminHome.java`)
 - [x] Route **all** panel switches through `showPanel`; log every denial (2.5.4) — **Done** (`View/Frame.java`)
 - [ ] Each Home panel checks `AccessControl` when shown, as a second layer — **Partial (Done for `AdminHome` & `MgmtLogs`):** **needs Lorenz (C)** for `StaffHome`, `ManagerHome`, and `ClientHome` (already drafted in `RoleFeatures.java`, blocked on Dave's `Validator.java` to compile)
@@ -131,9 +131,9 @@ All methods return `true` only if the input is valid. Callers must **reject** on
 - [x] Logging helper `main.log(...)` available to everyone — **Done** (`Controller/Main.java`)
 - [x] `ErrorHandler.show(...)` and use it in `Frame` and `AdminHome` handlers (2.4.2, 2.4.3) — **Done** (`Controller/ErrorHandler.java`, `View/Frame.java`, `View/AdminHome.java`, `View/MgmtLogs.java`)
 - [x] `Thread.setDefaultUncaughtExceptionHandler` in `Main`: show the generic message, clear `currentUser`, return to Login (2.4.4) — **Done** (`Controller/Main.java` + `Frame.resetToLogin()`)
-- [ ] **Admin panel:** list users; change role (with `Validator.isValidRole`); re-enable a disabled account (reset `failed_attempts`, set role back); delete user — **Needs Dave (A):** `Validator.isValidRole(...)` for role validation and prepared-statement DB methods `SQLite.updateUserRole(...)` and `SQLite.unlockUser(...)` so role edits and account unlocks persist safely without file conflicts on `SQLite.java`
+- [ ] **Admin panel:** list users; change role (with `Validator.isValidRole`); re-enable a disabled account (reset `failed_attempts`, set role back); delete user — **Partial (list users, delete user, `Validator` checks, RBAC, and `ErrorHandler` Done in `MgmtUser.java`):** **needs Dave (A)** for prepared-statement DB methods `SQLite.updateUserRole(...)` and `SQLite.unlockUser(...)` to persist role edits and account unlocks
 - [x] **Logs view** loads only for Role 5 (2.5.1) — **Done** (`View/AdminHome.java` + `View/MgmtLogs.java`)
-- [ ] Validate and log failures on admin forms — **Needs Dave (A):** `Controller/Validator.java` so `MgmtUser.java` can reject invalid inputs and log validation failures consistently
+- [x] Validate and log failures on admin forms — **Done** (`View/MgmtUser.java` validates with `Validator` and logs `"VALIDATION_FAILURE"` / `"ACCESS_DENIED"` / `"USER_DELETED"`)
 - [ ] Write the **Access Control Matrix** (Table 5) — **Pending:** can be drafted now, **needs Dave (A) & Lorenz (C)** to confirm final feature/button names (e.g., Change Password) before finalizing
 
 ### C (Lorenz): Role Features (Products, Purchases, History)

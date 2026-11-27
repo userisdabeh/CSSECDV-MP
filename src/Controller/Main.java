@@ -15,6 +15,7 @@ import java.util.Date;
 public class Main {
     
     public SQLite sqlite;
+    public AuthController auth;
     
     public static void main(String[] args) {
         new Main().init();
@@ -23,6 +24,9 @@ public class Main {
     public void init(){
         // Initialize a driver object
         sqlite = new SQLite();
+        
+        // Initialize Auth Controller
+        auth = new AuthController(this);
 
         // Create a database
         sqlite.createNewDatabase();

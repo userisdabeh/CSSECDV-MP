@@ -15,7 +15,7 @@ public class Login extends javax.swing.JPanel {
 
         jLabel1 = new javax.swing.JLabel();
         usernameFld = new javax.swing.JTextField();
-        passwordFld = new javax.swing.JTextField();
+        passwordFld = new javax.swing.JPasswordField();
         registerBtn = new javax.swing.JButton();
         loginBtn = new javax.swing.JButton();
 
@@ -83,7 +83,17 @@ public class Login extends javax.swing.JPanel {
         );
     }// </editor-fold>//GEN-END:initComponents
     private void loginBtnActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_loginBtnActionPerformed
-        frame.mainNav();
+        char[] password = ((javax.swing.JPasswordField) passwordFld).getPassword();
+        try {
+            if (!frame.loginAction(usernameFld.getText().trim(),password)) {
+                javax.swing.JOptionPane.showMessageDialog(this, "Invalid username and/or password", "Login failed", javax.swing.JOptionPane.ERROR_MESSAGE);
+            }
+        } catch (Exception e) {
+            Controller.ErrorHandler.show(this);
+        } finally {
+            java.util.Arrays.fill(password, (char) 0);
+            passwordFld.setText("");
+        }
     }//GEN-LAST:event_loginBtnActionPerformed
 
     private void registerBtnActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_registerBtnActionPerformed

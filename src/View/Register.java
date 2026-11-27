@@ -97,8 +97,26 @@ public class Register extends javax.swing.JPanel {
     }// </editor-fold>//GEN-END:initComponents
 
     private void registerBtnActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_registerBtnActionPerformed
-        frame.registerAction(usernameFld.getText(), passwordFld.getText(), confpassFld.getText());
-        frame.loginNav();
+        char[] pw = ((javax.swing.JPasswordField) passwordFld).getPassword();
+        char[] conf = ((javax.swing.JPasswordField) confpassFld).getPassword();
+        try {
+            if (frame.registerAction(usernameFld.getText().trim(), pw, conf)) {
+                javax.swing.JOptionPane.showMessageDialog(this, "Account created. You can now log in.");
+                frame.loginNav();
+            } else {
+                javax.swing.JOptionPane.showMessageDialog(this,
+                    "Registration failed. Username: 3-20 letters, digits or _. "
+                    + "Password: 8-64 characters with upper, lower, digit and symbol, and both fields must match.",
+                    "Registration", javax.swing.JOptionPane.ERROR_MESSAGE);
+            }
+        } catch (Exception ex) {
+            Controller.ErrorHandler.show(this);
+        } finally {
+            java.util.Arrays.fill(pw, (char) 0);
+            java.util.Arrays.fill(conf, (char) 0);
+            passwordFld.setText("");
+            confpassFld.setText("");
+        }
     }//GEN-LAST:event_registerBtnActionPerformed
 
     private void backBtnActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_backBtnActionPerformed
